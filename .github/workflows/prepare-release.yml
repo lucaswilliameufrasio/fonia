@@ -1,0 +1,48 @@
+name: Prepare Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão (ex.: 0.1.0 ou 0.2.0-alpha.1)'
+        required: true
+        type: string
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Atualizar versão, notas e abrir PR
+        env:
+          RAW: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v=${RAW#v}
+          [[ "$v" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$ ]]
+          ! git show-ref --verify --quiet "refs/tags/v$v" || exit 1
+          branch="release/v$v-rc.$GITHUB_RUN_ID"
+          git switch -c "$branch"
+          python3 - "$v" <<'PY'
+          import pathlib, plistlib, sys
+          path = pathlib.Path("Info.plist")
+          data = plistlib.loads(path.read_bytes())
+          data["CFBundleShortVersionString"] = sys.argv[1].split("-")[0]
+          data["CFBundleVersion"] = str(int(data["CFBundleVersion"]) + 1)
+          path.write_bytes(plistlib.dumps(data, sort_keys=False))
+          PY
+          previous=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          { printf '## v%s\n\n' "$v"; git log --no-merges --format='- %s' "${previous:+$previous..}HEAD"; printf '\n'; } > notes.tmp
+          cat CHANGELOG.md >> notes.tmp
+          mv notes.tmp CHANGELOG.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Info.plist CHANGELOG.md
+          git commit -m "chore(release): prepare v$v"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "Release v$v" --body "Revise as notas. Após o merge, crie a tag v$v no commit aprovado."

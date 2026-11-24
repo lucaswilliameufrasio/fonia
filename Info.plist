@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>Fonia</string>
+<key>CFBundleIdentifier</key><string>local.fonia.mixer</string>
+<key>CFBundleName</key><string>Fonia</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>LSMinimumSystemVersion</key><string>14.4</string>
+<key>LSUIElement</key><true/>
+<key>NSMicrophoneUsageDescription</key><string>O modificador de voz usa o microfone para aplicar o efeito e enviar sua voz ao destino escolhido.</string>
+<key>NSAudioCaptureUsageDescription</key><string>O Fonia precisa acessar o áudio dos aplicativos para reproduzi-lo no volume escolhido por você.</string>
+</dict></plist>
