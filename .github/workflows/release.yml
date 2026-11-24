@@ -16,7 +16,7 @@ jobs:
   release:
     needs: check
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     permissions:
       contents: write
     steps:
@@ -30,15 +30,13 @@ jobs:
         run: |
           set -euo pipefail
           git merge-base --is-ancestor HEAD origin/main
-          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$ ]]
-          version=$(python3 -c 'import plistlib; print(plistlib.load(open("Info.plist","rb"))["CFBundleShortVersionString"])')
-          [[ "${TAG%%-*}" == "v$version" ]]
-          grep -Fxq "## $TAG" CHANGELOG.md
-          awk -v heading="## $TAG" '$0==heading {found=1;next} found&&/^## /{exit} found{print}' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          out="$RUNNER_TEMP/fonia-release"
+          bash release/prepare-assets.sh "$TAG" "$out"
+          assets=()
           if [[ "$TAG" == *-* ]]; then
-            printf '\nPré-release de código-fonte para compilação local (`make check`). Sem binário notarizado.\n' >> "$RUNNER_TEMP/notes.md"
+            assets=("$out"/*.zip "$out"/*.sha256)
             mode=--prerelease
           else
             mode=--draft
           fi
-          gh release create "$TAG" "$mode" --verify-tag --title "Fonia $TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" "$mode" --verify-tag --title "Fonia $TAG" --notes-file "$out/notes.md" ${assets[@]+"${assets[@]}"}

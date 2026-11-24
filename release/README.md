@@ -4,7 +4,7 @@
 
 Execute **Actions → Prepare Release** na `main` com a versão desejada. Revise o PR com versão do bundle e changelog. Após o merge, atualize a `main`, marque o commit com `git tag vX.Y.Z` e envie a tag com `git push origin vX.Y.Z`. O workflow de tag compila e testa o app no macOS sem depender de dispositivos físicos. A primeira tag do projeto acompanha o commit inicial.
 
-Tags com `-alpha.N`, `-beta.N` ou `-rc.N` publicam pré-releases de **código-fonte**. Tags estáveis criam **rascunhos**: no Mac de distribuição, confira a tag, produza e valide o ZIP conforme abaixo, anexe-o à release com o SHA-256 e só então publique. Não distribua builds ad hoc como builds notarizados.
+Tags com `-alpha.N`, `-beta.N` ou `-rc.N` publicam automaticamente o ZIP do app ad hoc, seu SHA-256 e notas com as mudanças do changelog, arquitetura, requisito de macOS e instruções de instalação. Tags estáveis criam **rascunhos** com as notas do changelog: no Mac de distribuição, confira a tag, produza e valide o ZIP conforme abaixo, anexe-o à release com o SHA-256 e só então publique. Não distribua builds ad hoc como builds notarizados.
 
 O `.app` de `make` é um build local ad hoc. Para gerar uma cópia para distribuição, configure no Chaveiro do Mac uma identidade Apple **Developer ID Application** com chave privada e um perfil do `xcrun notarytool store-credentials`. Mantenha os segredos no Chaveiro. Na raiz do projeto, execute `make release` com `SIGN_IDENTITY` (nome completo da identidade) e `NOTARY_PROFILE` (nome do perfil) no ambiente. Essa ação envia uma cópia assinada do Fonia à Apple. Não publica o app nem inclui o BlackHole.
 
