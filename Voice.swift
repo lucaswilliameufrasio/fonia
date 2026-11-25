@@ -12,12 +12,14 @@ final class Voice: ObservableObject {
     private var feed: MicFeed?
     enum Setup { case idle, downloading, waiting, removing, failed(String) }
     @Published private(set) var setup = Setup.idle
+    @Published private(set) var driverPresent = VirtualMicSetup.driverPresent()
     var virtualMic: UInt32? { outputs.first { FoniaOutputName($0) == "BlackHole 2ch" } }
     private var effects: VoiceEffects?
     private var observer: NSObjectProtocol?
     private var session = UUID()
 
     func refresh() {
+        driverPresent = VirtualMicSetup.driverPresent()
         outputs = FoniaOutputs().map(\.uint32Value)
         if case .removing = setup, virtualMic == nil { setup = .idle }
         if !outputs.contains(destination) {
@@ -156,6 +158,8 @@ struct VoicePanel: View {
                             Text("A interface deixará de funcionar em todos os apps. O desinstalador reinicia o áudio do Mac e pode interromper chamadas e gravações.")
                         }
                 }
+            } else if voice.driverPresent {
+                Text("BlackHole 2ch instalado. A saída ainda não apareceu no macOS. Se você acabou de instalar, reinicie o Mac; não é preciso reinstalar.").font(.caption).fixedSize(horizontal: false, vertical: true)
             } else {
                 switch voice.setup {
                 case .downloading: Text("Baixando BlackHole 2ch…").font(.caption)

@@ -20,6 +20,12 @@ struct RouteChecks {
         let invalid = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try Data("unexpected package".utf8).write(to: invalid)
         defer { try? FileManager.default.removeItem(at: invalid) }
+        precondition(!VirtualMicSetup.driverPresent(at: invalid))
+        let driver = invalid.appendingPathExtension("driver")
+        precondition(!VirtualMicSetup.driverPresent(at: driver))
+        try FileManager.default.createDirectory(at: driver, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: driver) }
+        precondition(VirtualMicSetup.driverPresent(at: driver))
         for action in DriverAction.allCases {
             do {
                 try VirtualMicSetup.verify(invalid, for: action)

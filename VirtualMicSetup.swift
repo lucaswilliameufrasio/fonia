@@ -13,6 +13,13 @@ enum DriverAction: CaseIterable {
 }
 
 enum VirtualMicSetup {
+    static let driver = URL(fileURLWithPath: "/Library/Audio/Plug-Ins/HAL/BlackHole2ch.driver")
+
+    static func driverPresent(at url: URL = driver) -> Bool {
+        var directory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) && directory.boolValue
+    }
+
     private static let signer = "Developer ID Installer: Existential Audio Inc. (Q5C99V536K)"
 
     static func accepts(signed: String, assessment: String) -> Bool {
