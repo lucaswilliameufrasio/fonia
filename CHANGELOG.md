@@ -1,3 +1,7 @@
+## v0.1.0-alpha.3
+
+- feat: adicionar ajustes e opção de iniciar com o Mac
+
 ## v0.1.0-alpha.2
 
 - fix: reconhecer o BlackHole instalado antes de reiniciar o Mac
