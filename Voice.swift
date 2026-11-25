@@ -122,7 +122,6 @@ final class Voice: ObservableObject {
 
 struct VoicePanel: View {
     @ObservedObject var voice: Voice
-    @State private var confirmingRemoval = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Picker("Voz", selection: $voice.preset) {
@@ -132,6 +131,23 @@ struct VoicePanel: View {
                 Text("Escolha uma saída").tag(UInt32(0))
                 ForEach(voice.outputs, id: \.self) { Text(FoniaOutputName($0)).tag($0) }
             }.disabled(voice.state == .running || voice.state == .requesting)
+            switch voice.state {
+            case .running: Button("Desativar microfone") { voice.stop() }
+            case .requesting: Button("Cancelar ativação") { voice.stop() }
+            default:
+                if case let .failed(message) = voice.state { Text(message).font(.callout) }
+                Button("Ativar microfone") { Task { await voice.start() } }.disabled(voice.destination == 0)
+            }
+        }.onAppear { voice.refresh() }
+        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in voice.refresh() }
+    }
+}
+
+struct DriverPanel: View {
+    @ObservedObject var voice: Voice
+    @State private var confirmingRemoval = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
             if let virtualMic = voice.virtualMic {
                 if voice.destination == virtualMic {
                     Text("Na chamada, selecione BlackHole 2ch como microfone.").font(.caption)
@@ -171,14 +187,6 @@ struct VoicePanel: View {
                     Text("Para usar a voz em chamadas, instale a interface virtual BlackHole 2ch.").font(.caption)
                     Button("Instalar interface para chamadas…") { Task { await voice.configureCalls() } }
                 }
-            }
-            switch voice.state {
-            case .running: Button("Desativar microfone") { voice.stop() }
-            case .requesting: Button("Cancelar ativação") { voice.stop() }
-            default:
-                if case let .failed(message) = voice.state { Text(message).font(.callout) }
-                Text("Use fones para ouvir sua voz ou uma saída virtual para chamadas.").font(.caption)
-                Button("Ativar microfone") { Task { await voice.start() } }.disabled(voice.destination == 0)
             }
         }.onAppear { voice.refresh() }
         .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in voice.refresh() }

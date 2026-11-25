@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 
 struct Source: Identifiable {
@@ -137,8 +138,55 @@ struct Fonia: App {
                 DisclosureGroup(voice.state == .running ? "Modificador de voz · microfone ativo" : "Modificador de voz", isExpanded: $showingVoice) {
                     VoicePanel(voice: voice)
                 }
-                Button("Encerrar Fonia") { NSApplication.shared.terminate(nil) }
+                HStack {
+                    Button("Encerrar Fonia") { NSApplication.shared.terminate(nil) }
+                    Spacer()
+                    SettingsLink { Image(systemName: "gearshape") }
+                        .accessibilityLabel("Ajustes do Fonia").help("Ajustes do Fonia")
+                        .keyboardShortcut(",", modifiers: .command)
+                }
             }.padding(16).frame(width: 320)
         }.menuBarExtraStyle(.window)
+        Settings {
+            FoniaSettings(voice: voice)
+        }.windowResizability(.contentSize)
+    }
+}
+
+private struct FoniaSettings: View {
+    @ObservedObject var voice: Voice
+    @State private var status = SMAppService.mainApp.status
+    @State private var errorMessage = ""
+
+    var body: some View {
+        Form {
+            Section("Geral") {
+                Toggle("Iniciar com o Mac", isOn: Binding(
+                    get: { status == .enabled || status == .requiresApproval },
+                    set: { enabled in
+                        do {
+                            if enabled { try SMAppService.mainApp.register() }
+                            else { try SMAppService.mainApp.unregister() }
+                            errorMessage = ""
+                        } catch {
+                            errorMessage = "Não foi possível alterar o início automático. Mova o Fonia para Aplicativos e confira os Itens de Início do macOS. \(error.localizedDescription)"
+                        }
+                        status = SMAppService.mainApp.status
+                    }))
+                Text("Abre o mixer na barra de menus quando você inicia a sessão. O microfone continua desligado.").font(.caption)
+                if !errorMessage.isEmpty { Text(errorMessage) }
+                if status == .requiresApproval || !errorMessage.isEmpty {
+                    Button("Abrir Itens de Início do macOS") { SMAppService.openSystemSettingsLoginItems() }
+                }
+            }
+            Section("Microfone para chamadas") { DriverPanel(voice: voice) }
+        }.formStyle(.grouped).frame(width: 460).fixedSize(horizontal: false, vertical: true)
+        .onAppear {
+            NSApp.activate(ignoringOtherApps: true)
+            status = SMAppService.mainApp.status
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            status = SMAppService.mainApp.status
+        }
     }
 }
