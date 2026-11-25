@@ -26,6 +26,10 @@ O efeito roda localmente, sem gravar. A interface virtual é o BlackHole, instal
 
 ## Funcionamento
 
+### Painel de sons
+
+No menu do Fonia, abra **Painel de sons → Importar sons…** e selecione arquivos de áudio locais mono ou estéreo. Cada clipe ganha um botão e fica copiado na biblioteca do Fonia. No Discord, OBS ou outro aplicativo, escolha **BlackHole 2ch** como microfone. Um clique toca o clipe uma vez até o fim; clicar de novo reinicia do começo e clicar em outro som substitui o anterior. A voz pode continuar ativa em paralelo no mesmo destino. Fechar o painel interrompe o clipe. O menu de contexto de cada botão remove a cópia da biblioteca, preservando o original.
+
 Com BlackHole 2ch ativo no sistema, **Ajustes → Microfone para chamadas → Remover BlackHole 2ch…** abre o desinstalador oficial após confirmação. Isso remove a interface de todos os aplicativos e pode interromper áudio em andamento. Instalação e remoção verificam SHA-256, assinatura do editor e notarização/Gatekeeper antes de abrir o pacote. Consulte [distribuição e revisão de versões](release/README.md).
 
 `Fonia.swift` enumera as fontes em reprodução e apresenta controles SwiftUI. `Audio.m` usa taps privados do Core Audio: ao reduzir um aplicativo, silencia seu caminho original enquanto reproduz suas amostras estéreo com o ganho escolhido na saída padrão. Não salva amostras. Voltar para 100% libera o tap. Os níveis individuais duram a sessão; o ajuste geral altera a saída do sistema.

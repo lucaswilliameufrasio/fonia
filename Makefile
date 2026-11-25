@@ -5,16 +5,17 @@ BIN := $(APP)/Contents/MacOS/Fonia
 .PHONY: build
 build: $(BIN)
 
-$(BIN): Fonia.swift SourceIdentity.swift Voice.swift VoiceEffects.swift VoiceRoute.swift VirtualMicSetup.swift Audio.m Audio.h Info.plist Makefile
+$(BIN): Fonia.swift Soundboard.swift SourceIdentity.swift Voice.swift VoiceEffects.swift VoiceRoute.swift VirtualMicSetup.swift Audio.m Audio.h Info.plist Makefile
 	mkdir -p "$(APP)/Contents/MacOS"
 	xcrun clang -target $(TARGET) -fobjc-arc -Wall -Werror -c Audio.m -o build/Audio.o
-	xcrun swiftc -target $(TARGET) -O -parse-as-library -import-objc-header Audio.h Fonia.swift SourceIdentity.swift Voice.swift VoiceEffects.swift VoiceRoute.swift VirtualMicSetup.swift build/Audio.o -framework CoreAudio -framework AudioToolbox -o "$(BIN)"
+	xcrun swiftc -target $(TARGET) -O -parse-as-library -import-objc-header Audio.h Fonia.swift Soundboard.swift SourceIdentity.swift Voice.swift VoiceEffects.swift VoiceRoute.swift VirtualMicSetup.swift build/Audio.o -framework CoreAudio -framework AudioToolbox -o "$(BIN)"
 	cp Info.plist "$(APP)/Contents/Info.plist"
 	codesign --force --sign - "$(APP)"
 
 .PHONY: check check-offline
 check: check-offline
 	build/route-checks
+	build/sound-checks --playback
 
 check-offline: build
 	plutil -lint Info.plist
@@ -27,6 +28,8 @@ check-offline: build
 	build/identity-checks
 	xcrun swiftc -target $(TARGET) -parse-as-library -import-objc-header Audio.h VoiceRoute.swift VirtualMicSetup.swift VoiceEffects.swift RouteChecks.swift build/Audio.o -framework CoreAudio -framework AudioToolbox -o build/route-checks
 	build/route-checks --offline
+	xcrun swiftc -target $(TARGET) -parse-as-library -import-objc-header Audio.h VoiceRoute.swift VirtualMicSetup.swift VoiceEffects.swift Voice.swift Soundboard.swift SoundChecks.swift build/Audio.o -framework CoreAudio -framework AudioToolbox -o build/sound-checks
+	build/sound-checks
 
 .PHONY: release
 release:

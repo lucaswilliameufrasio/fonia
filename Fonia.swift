@@ -119,7 +119,7 @@ struct Fonia: App {
                 Divider()
                 Text("Aplicativos").font(.headline)
                 if mixer.sources.isEmpty {
-                    Text("Reproduza áudio em um aplicativo para vê-lo aqui.").foregroundStyle(.secondary)
+                    Text("Nenhum aplicativo tocando agora.").foregroundStyle(.secondary)
                 } else {
                     ScrollView {
                         VStack(spacing: 10) {
@@ -139,14 +139,19 @@ struct Fonia: App {
                     VoicePanel(voice: voice)
                 }
                 HStack {
-                    Button("Encerrar Fonia") { NSApplication.shared.terminate(nil) }
+                    SoundboardButton()
                     Spacer()
                     SettingsLink { Image(systemName: "gearshape") }
                         .accessibilityLabel("Ajustes do Fonia").help("Ajustes do Fonia")
                         .keyboardShortcut(",", modifiers: .command)
+                    Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
+                        .accessibilityLabel("Encerrar Fonia").help("Encerrar Fonia")
                 }
             }.padding(16).frame(width: 320)
         }.menuBarExtraStyle(.window)
+        Window("Painel de sons", id: "sounds") {
+            SoundboardPanel(voice: voice)
+        }.defaultSize(width: 500, height: 320)
         Settings {
             FoniaSettings(voice: voice)
         }.windowResizability(.contentSize)
