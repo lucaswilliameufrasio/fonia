@@ -1,3 +1,7 @@
+## v0.1.0-alpha.4
+
+- feat: adicionar painel de sons com reprodução por clique
+
 ## v0.1.0-alpha.3
 
 - feat: adicionar ajustes e opção de iniciar com o Mac
