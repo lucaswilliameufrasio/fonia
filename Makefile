@@ -32,5 +32,10 @@ check-offline: build
 	build/sound-checks
 
 .PHONY: release
+.PHONY: diagnostics
+diagnostics: build
+	xcrun swiftc -target $(TARGET) -import-objc-header Audio.h MixerDiagnostics.swift build/Audio.o -framework CoreAudio -framework AudioToolbox -o build/mixer-diagnostics
+	build/mixer-diagnostics
+
 release:
 	/bin/zsh release/notarize.zsh

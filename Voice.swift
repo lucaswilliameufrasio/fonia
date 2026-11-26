@@ -17,13 +17,17 @@ final class Voice: ObservableObject {
     private var effects: VoiceEffects?
     private var observer: NSObjectProtocol?
     private var session = UUID()
+    @Published private(set) var previewOutput: UInt32?
 
     func refresh() {
         driverPresent = VirtualMicSetup.driverPresent()
         outputs = FoniaOutputs().map(\.uint32Value)
         if case .removing = setup, virtualMic == nil { setup = .idle }
+        if (state == .running || state == .requesting), !outputs.contains(previewOutput ?? destination) {
+            stop()
+            state = .failed("A saída foi desconectada. Reconecte o dispositivo ou escolha outra saída.")
+        }
         if !outputs.contains(destination) {
-            if state == .running || state == .requesting { stop() }
             destination = 0
         }
         if let virtualMic, case .waiting = setup, state != .running, state != .requesting {
@@ -47,11 +51,20 @@ final class Voice: ObservableObject {
         }
     }
 
-    func start() async {
-        guard engine == nil, state != .requesting, destination != 0 else { return }
+    func start(preview: Bool = false) async {
+        guard engine == nil, state != .requesting else { return }
+        let route = preview ? FoniaOutput() : destination
+        guard route != 0, !preview || !isVirtualDevice(route) else {
+            state = .failed("Selecione os fones como saída padrão do Mac para ouvir o teste.")
+            return
+        }
+        previewOutput = preview ? route : nil
         let token = UUID()
         session = token
         state = .requesting
+        defer {
+            if session == token && state != .running { previewOutput = nil }
+        }
         let allowed = await AVCaptureDevice.requestAccess(for: .audio)
         guard session == token else { return }
         guard allowed else {
@@ -59,7 +72,7 @@ final class Voice: ObservableObject {
             return
         }
         let inputID = FoniaInput()
-        guard inputID != 0, FoniaOutputs().contains(NSNumber(value: destination)) else {
+        guard inputID != 0, FoniaOutputs().contains(NSNumber(value: route)) else {
             state = .failed("Microfone ou destino indisponível. Confira os dispositivos.")
             return
         }
@@ -68,11 +81,11 @@ final class Voice: ObservableObject {
         let microphone = MicFeed()
         do {
             // A headset may supply both endpoints, but a loopback device must not feed itself.
-            if inputID == destination && isVirtualDevice(inputID) {
+            if inputID == route && isVirtualDevice(inputID) {
                 state = .failed("Escolha um microfone físico como entrada padrão do Mac.")
                 return
             }
-            try selectVoiceOutput(destination, engine: audio)
+            try selectVoiceOutput(route, engine: audio)
             try microphone.configure()
             audio.attach(microphone.player)
             chain.connect(in: audio, source: microphone.player, format: microphone.format)
@@ -85,6 +98,13 @@ final class Voice: ObservableObject {
             engine = audio
             effects = chain
             state = .running
+            if preview {
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(5))
+                    guard let self, self.session == token else { return }
+                    self.stop()
+                }
+            }
             observer = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: audio, queue: .main) { [weak self] _ in
                 Task { @MainActor in
                     guard let self, self.session == token else { return }
@@ -116,6 +136,7 @@ final class Voice: ObservableObject {
         engine?.stop()
         engine = nil
         effects = nil
+        previewOutput = nil
         state = .idle
     }
 }
@@ -132,11 +153,13 @@ struct VoicePanel: View {
                 ForEach(voice.outputs, id: \.self) { Text(FoniaOutputName($0)).tag($0) }
             }.disabled(voice.state == .running || voice.state == .requesting)
             switch voice.state {
-            case .running: Button("Desativar microfone") { voice.stop() }
+            case .running: Button(voice.previewOutput == nil ? "Desativar microfone" : "Encerrar teste") { voice.stop() }
             case .requesting: Button("Cancelar ativação") { voice.stop() }
             default:
                 if case let .failed(message) = voice.state { Text(message).font(.callout) }
                 Button("Ativar microfone") { Task { await voice.start() } }.disabled(voice.destination == 0)
+                Button("Ouvir teste de 5 segundos") { Task { await voice.start(preview: true) } }
+                Text("Use fones na saída padrão do Mac para evitar microfonia.").font(.caption)
             }
         }.onAppear { voice.refresh() }
         .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in voice.refresh() }

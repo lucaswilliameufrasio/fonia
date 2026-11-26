@@ -32,9 +32,13 @@ No menu do Fonia, abra **Painel de sons → Importar sons…** e selecione arqui
 
 Com BlackHole 2ch ativo no sistema, **Ajustes → Microfone para chamadas → Remover BlackHole 2ch…** abre o desinstalador oficial após confirmação. Isso remove a interface de todos os aplicativos e pode interromper áudio em andamento. Instalação e remoção verificam SHA-256, assinatura do editor e notarização/Gatekeeper antes de abrir o pacote. Consulte [distribuição e revisão de versões](release/README.md).
 
-`Fonia.swift` enumera as fontes em reprodução e apresenta controles SwiftUI. `Audio.m` usa taps privados do Core Audio: ao reduzir um aplicativo, silencia seu caminho original enquanto reproduz suas amostras estéreo com o ganho escolhido na saída padrão. Não salva amostras. Voltar para 100% libera o tap. Os níveis individuais duram a sessão; o ajuste geral altera a saída do sistema.
+`Fonia.swift` enumera as fontes em reprodução e apresenta controles SwiftUI. `Audio.m` usa taps privados do Core Audio: ao reduzir um aplicativo, silencia seu caminho original enquanto reproduz suas amostras estéreo com o ganho escolhido na saída padrão. Não salva amostras. Voltar para 100% libera o tap. O botão de alto-falante silencia o app e, no segundo clique, restaura o volume anterior. Em **Ajustes → Geral**, habilite **Lembrar volume por aplicativo** para reaplicar os níveis quando os apps voltarem a tocar, inclusive após reiniciar o Fonia. Desativar a opção apaga os níveis salvos. O ajuste geral altera a saída do sistema.
+
+Em **Modificador de voz**, escolha o preset e clique em **Ouvir teste de 5 segundos**. Use fones como saída padrão do macOS. O teste usa o microfone ao vivo, encerra automaticamente e preserva o destino escolhido para chamadas.
 
 ## Verificação
+
+Para investigar um painel deslocado ou uma saída sem ajuste de volume, rode `make diagnostics` no Mac afetado com a saída selecionada. Para capturar também a posição do painel, execute `sleep 5 && build/mixer-diagnostics` e abra o menu do Fonia dentro desses cinco segundos. O diagnóstico informa a escala e a posição das telas, as janelas visíveis do Fonia e quais controles de volume a saída declara ajustáveis; não muda o volume. Compare com uma captura que inclua tanto o ícone da barra quanto o painel.
 
 `make check` compila o app, verifica o bundle e testa a atenuação e o silêncio com amostras conhecidas, usando o mesmo callback do app. Para validar áudio no hardware:
 

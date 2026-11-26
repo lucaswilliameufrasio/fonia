@@ -1,4 +1,5 @@
 import AppKit
+import CoreAudio
 import ServiceManagement
 import SwiftUI
 
@@ -10,6 +11,24 @@ struct Source: Identifiable {
 
 @MainActor
 final class Mixer: ObservableObject {
+    private struct SavedLevel: Codable {
+        let level: Float
+        let beforeMute: Float?
+    }
+    private let defaults = UserDefaults.standard
+    private var saved = [String: SavedLevel]()
+    private var beforeMute = [String: Float]()
+    @Published var rememberLevels: Bool {
+        didSet {
+            defaults.set(rememberLevels, forKey: "rememberLevels")
+            if rememberLevels {
+                for key in levels.keys { remember(key) }
+            } else {
+                saved.removeAll()
+                defaults.removeObject(forKey: "savedLevels")
+            }
+        }
+    }
     @Published private(set) var sources = [Source]()
     @Published private(set) var levels = [String: Float]()
     @Published private(set) var outputName = ""
@@ -20,6 +39,11 @@ final class Mixer: ObservableObject {
     private var timer: Timer?
 
     init() {
+        rememberLevels = UserDefaults.standard.bool(forKey: "rememberLevels")
+        if rememberLevels, let data = defaults.data(forKey: "savedLevels"),
+           let decoded = try? JSONDecoder().decode([String: SavedLevel].self, from: data) {
+            saved = decoded.filter { (0...1).contains($0.value.level) }
+        }
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
@@ -46,6 +70,16 @@ final class Mixer: ObservableObject {
                     connect(source, device: device, value: levels[key] ?? 1)
                 } else {
                     levels.removeValue(forKey: key)
+                    beforeMute.removeValue(forKey: key)
+                }
+            }
+        }
+        if rememberLevels, device != 0 {
+            let existing = Set(sources.map(\.id))
+            for source in groups.values where channels[source.id] == nil && (!existing.contains(source.id) || output == 0) {
+                if let setting = saved[source.id], setting.level < 1 {
+                    beforeMute[source.id] = setting.beforeMute
+                    connect(source, device: device, value: setting.level)
                 }
             }
         }
@@ -57,7 +91,9 @@ final class Mixer: ObservableObject {
 
     func setMaster(_ value: Float) {
         guard output == FoniaOutput(), FoniaSetVolume(output, value) else {
-            message = "Não foi possível ajustar o volume desta saída."
+            message = output != FoniaOutput() || output == 0
+                ? "A saída mudou ou foi desconectada. Selecione uma saída em Ajustes do Sistema → Som."
+                : "Esta saída não aceitou o ajuste. Use o controle do dispositivo ou o volume por aplicativo."
             refresh()
             return
         }
@@ -65,6 +101,7 @@ final class Mixer: ObservableObject {
     }
 
     func setLevel(_ source: Source, _ value: Float) {
+        let previous = levels[source.id] ?? 1
         if value >= 1 {
             channels.removeValue(forKey: source.id)?.stop()
             levels.removeValue(forKey: source.id)
@@ -74,6 +111,21 @@ final class Mixer: ObservableObject {
         } else {
             connect(source, device: output, value: value)
         }
+        guard (levels[source.id] ?? 1) == value else { return }
+        if value == 0 && previous > 0 { beforeMute[source.id] = previous }
+        if value > 0 { beforeMute.removeValue(forKey: source.id) }
+        remember(source.id)
+    }
+
+    private func remember(_ key: String) {
+        guard rememberLevels, !key.hasPrefix("pid:") else { return }
+        saved[key] = levels[key].map { SavedLevel(level: $0, beforeMute: beforeMute[key]) }
+        if let data = try? JSONEncoder().encode(saved) { defaults.set(data, forKey: "savedLevels") }
+    }
+
+    func toggleMute(_ source: Source) {
+        let muted = levels[source.id] == 0
+        setLevel(source, muted ? (beforeMute[source.id] ?? 1) : 0)
     }
 
     private func connect(_ source: Source, device: UInt32, value: Float) {
@@ -82,7 +134,15 @@ final class Mixer: ObservableObject {
             levels[source.id] = value
         } catch {
             levels.removeValue(forKey: source.id)
-            message = "Não foi possível ajustar \(source.name) (Core Audio: \((error as NSError).code)). Confira a permissão de gravação de áudio do sistema em Privacidade e Segurança."
+            let failure = error as NSError
+            if device == 0 || device != FoniaOutput() || !FoniaOutputs().contains(NSNumber(value: device)) {
+                message = "A saída mudou ou foi desconectada. Selecione uma saída em Ajustes do Sistema → Som e tente novamente."
+            } else if failure.domain == NSOSStatusErrorDomain &&
+                        [Int(kAudioDevicePermissionsError), -54, 0x7065726d].contains(failure.code) {
+                message = "O acesso ao áudio de \(source.name) foi negado. Autorize o Fonia em Privacidade e Segurança → Gravação de Tela e Áudio do Sistema."
+            } else {
+                message = "Não foi possível capturar \(source.name) (Core Audio: \(failure.code)). Inicie a reprodução no aplicativo e tente ajustar o volume novamente."
+            }
         }
     }
 }
@@ -124,16 +184,12 @@ struct Fonia: App {
                 Text("Aplicativos").font(.headline)
                 if mixer.sources.isEmpty {
                     Text("Nenhum aplicativo tocando agora.").foregroundStyle(.secondary)
-                } else if mixer.sources.count == 1, let source = mixer.sources.first {
-                    fader(for: source)
+                } else if mixer.sources.count <= 5 {
+                    sourceRows
                 } else {
                     ScrollView {
-                        VStack(spacing: 10) {
-                            ForEach(mixer.sources) { source in
-                                fader(for: source)
-                            }
-                        }
-                    }.frame(height: min(CGFloat(mixer.sources.count) * 54, 270))
+                        sourceRows
+                    }.frame(height: 270)
                 }
                 if !mixer.message.isEmpty {
                     Text(mixer.message).font(.callout)
@@ -152,30 +208,50 @@ struct Fonia: App {
                     Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
                         .accessibilityLabel("Encerrar Fonia").help("Encerrar Fonia")
                 }
-            }.padding(16).frame(width: 320).fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(16)
+            .frame(width: 320)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxHeight: .infinity, alignment: .top)
         }.menuBarExtraStyle(.window)
         Window("Painel de sons", id: "sounds") {
             SoundboardPanel(voice: voice)
         }.defaultSize(width: 500, height: 320)
         Settings {
-            FoniaSettings(voice: voice)
+            FoniaSettings(voice: voice, mixer: mixer)
         }.windowResizability(.contentSize)
     }
 
+    private var sourceRows: some View {
+        VStack(spacing: 10) {
+            ForEach(mixer.sources) { source in
+                fader(for: source)
+            }
+        }
+    }
+
     private func fader(for source: Source) -> some View {
-        Fader(name: source.name, level: Binding(get: { mixer.levels[source.id] ?? 1 },
-                                               set: { mixer.setLevel(source, $0) }))
+        let muted = mixer.levels[source.id] == 0
+        return HStack {
+            Button { mixer.toggleMute(source) } label: {
+                Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2")
+            }.accessibilityLabel("\(muted ? "Restaurar volume de" : "Silenciar") \(source.name)")
+            Fader(name: source.name, level: Binding(get: { mixer.levels[source.id] ?? 1 },
+                                                   set: { mixer.setLevel(source, $0) }))
+        }
     }
 }
 
 private struct FoniaSettings: View {
     @ObservedObject var voice: Voice
+    @ObservedObject var mixer: Mixer
     @State private var status = SMAppService.mainApp.status
     @State private var errorMessage = ""
 
     var body: some View {
         Form {
             Section("Geral") {
+                Toggle("Lembrar volume por aplicativo", isOn: $mixer.rememberLevels)
                 Toggle("Iniciar com o Mac", isOn: Binding(
                     get: { status == .enabled || status == .requiresApproval },
                     set: { enabled in
