@@ -1,3 +1,8 @@
+## v0.1.0-alpha.5
+
+- feat: compactar mixer, lembrar volumes e testar o microfone
+- fix: ajustar painel e detecção do volume geral
+
 ## v0.1.0-alpha.4
 
 - feat: adicionar painel de sons com reprodução por clique
