@@ -114,18 +114,23 @@ struct Fonia: App {
                 if mixer.master >= 0 {
                     Fader(name: mixer.outputName, level: Binding(get: { mixer.master }, set: mixer.setMaster))
                 } else {
-                    Text("\(mixer.outputName) · volume indisponível").foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(mixer.outputName)
+                        Text("Sem ajuste geral pelo macOS. Use os controles por aplicativo.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 Divider()
                 Text("Aplicativos").font(.headline)
                 if mixer.sources.isEmpty {
                     Text("Nenhum aplicativo tocando agora.").foregroundStyle(.secondary)
+                } else if mixer.sources.count == 1, let source = mixer.sources.first {
+                    fader(for: source)
                 } else {
                     ScrollView {
                         VStack(spacing: 10) {
                             ForEach(mixer.sources) { source in
-                                Fader(name: source.name, level: Binding(get: { mixer.levels[source.id] ?? 1 },
-                                                                         set: { mixer.setLevel(source, $0) }))
+                                fader(for: source)
                             }
                         }
                     }.frame(height: min(CGFloat(mixer.sources.count) * 54, 270))
@@ -147,7 +152,7 @@ struct Fonia: App {
                     Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
                         .accessibilityLabel("Encerrar Fonia").help("Encerrar Fonia")
                 }
-            }.padding(16).frame(width: 320)
+            }.padding(16).frame(width: 320).fixedSize(horizontal: false, vertical: true)
         }.menuBarExtraStyle(.window)
         Window("Painel de sons", id: "sounds") {
             SoundboardPanel(voice: voice)
@@ -155,6 +160,11 @@ struct Fonia: App {
         Settings {
             FoniaSettings(voice: voice)
         }.windowResizability(.contentSize)
+    }
+
+    private func fader(for source: Source) -> some View {
+        Fader(name: source.name, level: Binding(get: { mixer.levels[source.id] ?? 1 },
+                                               set: { mixer.setLevel(source, $0) }))
     }
 }
 

@@ -68,23 +68,31 @@ NSArray<NSNumber *> *FoniaOutputs(void) {
     return outputs;
 }
 NSString *FoniaOutputName(unsigned int device) { return string(device, kAudioObjectPropertyName) ?: @"Sem saída"; }
-static AudioObjectPropertyAddress volumeAddress(void) {
-    return (AudioObjectPropertyAddress){kAudioHardwareServiceDeviceProperty_VirtualMainVolume, kAudioDevicePropertyScopeOutput, 0};
+static BOOL findVolume(unsigned int device, AudioObjectPropertyAddress *address, float *value) {
+    const AudioObjectPropertySelector selectors[] = {
+        kAudioHardwareServiceDeviceProperty_VirtualMainVolume, kAudioDevicePropertyVolumeScalar
+    };
+    for (size_t i = 0; i < sizeof(selectors) / sizeof(selectors[0]); i++) {
+        *address = (AudioObjectPropertyAddress){selectors[i], kAudioDevicePropertyScopeOutput, kAudioObjectPropertyElementMain};
+        Boolean writable = false;
+        UInt32 size = sizeof(*value);
+        if (!AudioObjectIsPropertySettable(device, address, &writable) && writable &&
+            !AudioObjectGetPropertyData(device, address, 0, NULL, &size, value)) {
+            return YES;
+        }
+    }
+    return NO;
 }
 float FoniaVolume(unsigned int device) {
-    AudioObjectPropertyAddress address = volumeAddress();
-    Boolean writable = false;
+    AudioObjectPropertyAddress address;
     float value;
-    UInt32 size = sizeof(value);
-    if (AudioObjectIsPropertySettable(device, &address, &writable) || !writable ||
-        AudioObjectGetPropertyData(device, &address, 0, NULL, &size, &value)) {
-        return -1;
-    }
-    return value;
+    return findVolume(device, &address, &value) ? value : -1;
 }
 BOOL FoniaSetVolume(unsigned int device, float value) {
-    AudioObjectPropertyAddress address = volumeAddress();
-    return !AudioObjectSetPropertyData(device, &address, 0, NULL, sizeof(value), &value);
+    AudioObjectPropertyAddress address;
+    float current;
+    return findVolume(device, &address, &current) &&
+        !AudioObjectSetPropertyData(device, &address, 0, NULL, sizeof(value), &value);
 }
 
 // The aggregate's physical input streams precede the appended stereo tap.
